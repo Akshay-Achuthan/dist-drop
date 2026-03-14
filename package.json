@@ -1,0 +1,25 @@
+{
+  "name": "dist-drop",
+  "version": "1.0.0",
+  "description": "Framework-agnostic CLI tool to automate build + copy of frontend apps into legacy Java WARs",
+  "author": "Akshay Achuthan",
+  "license": "MIT",
+  "bin": {
+    "dist-drop": "./bin/dist-drop.js"
+  },
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=16"
+  },
+  "scripts": {
+    "start": "node bin/dist-drop.js"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "chokidar": "^3.6.0",
+    "commander": "^11.1.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1"
+  }
+}

@@ -1,49 +1,103 @@
-# DistDrop
+# dist-drop
 
-DistDrop is a simple utility that helps developers quickly deploy Vue build files without manually copying the `dist` folder into WAR files.
+Framework-agnostic CLI tool that automates building frontend apps and copying build output into legacy Java WARs (Wildfly, Weblogic, Tomcat).
 
-## 🚀 Problem
+## Problem
 
-When working with Vue applications like:
+When developing frontend apps (Vue, React, Angular, etc.) embedded inside legacy Java WARs, every small change requires:
 
-* ui_swift
-* ui_remit
-* ui_k2_retail
+1. `npm run build` in the frontend project
+2. Manually copy `dist/` or `build/` to the correct folder inside the WAR
+3. Check if it works in the legacy app
 
-Every small change usually requires:
+This is repetitive and error-prone — folder names don't always match, build output folders vary by framework, and developers waste 3-5 minutes per cycle.
 
-1. Running `npm run build`
-2. Manually copying the `dist` folder
-3. Pasting it inside the correct location in a `.war` file
+## Solution
 
-This process is repetitive and time-consuming.
+A one-time interactive setup (`dist-drop init`) auto-detects your frontend projects, then `dist-drop sync` or `dist-drop watch` handles the rest.
 
-## 💡 Solution
+## Installation
 
-DistDrop automates this process by allowing developers to quickly move build files to the required destination.
-
-## ⚙️ Features
-
-* Automates Vue build deployment
-* Reduces manual copying of `dist` folders
-* Works with different Vue projects
-* Saves development time
-
-## 📦 Usage
-
-1. Build your Vue project
-
-```
-npm run build
+```bash
+cd D:\Learnings\dist-drop
+npm install
+npm link
 ```
 
-2. Run DistDrop to move the build files to the required WAR folder.
+After `npm link`, the `dist-drop` command is available globally.
 
-## 🛠 Tech
+## Commands
 
-* Node.js
-* Vue.js projects
+### `dist-drop init` — Interactive Setup
 
-## 📌 Author
+Auto-detects frontend projects in a directory and creates `.distdroprc.json`:
+
+```bash
+dist-drop init
+```
+
+**Auto-detection supports:**
+
+| Framework | Detection | Build Output |
+|-----------|-----------|-------------|
+| Vue 2/3 | `vue.config.js` or `@vue/cli-service` | `dist/` |
+| React (CRA) | `react-scripts` | `build/` |
+| React (Vite) | `@vitejs/plugin-react` | `dist/` |
+| Angular | `angular.json` | `dist/<project>/` |
+| Next.js | `next` in package.json | `out/` |
+| Generic | Fallback | User specifies |
+
+### `dist-drop sync [project]` — Build + Drop
+
+```bash
+# Sync a specific project
+dist-drop sync ui_swift
+
+# Sync all configured projects
+dist-drop sync --all
+```
+
+Three sync modes:
+- **Full Build + Drop** — `npm run build` then copy all files
+- **Drop Only** — skip build, copy existing build output
+- **Incremental Drop** — copy only files changed since last sync
+
+### `dist-drop watch <project>` — Auto Sync on Save
+
+```bash
+dist-drop watch ui_k2_retail
+```
+
+Watches `src/` and `public/` for changes. On save: debounce 500ms, build, copy. Press Ctrl+C to stop.
+
+### `dist-drop status` — Show Config
+
+```bash
+dist-drop status
+```
+
+Lists all configured projects with framework, source, target, and build status.
+
+## Config File
+
+`.distdroprc.json` is created in your working directory:
+
+```json
+{
+  "version": 1,
+  "warBase": "D:/wildfly-8.2.0.Final/standalone/deployments/ing_uat.war",
+  "projects": {
+    "ui_swift": {
+      "source": "D:/credence/MERCURYFX/Apps/KOTAK/ui_swift",
+      "framework": "vue2",
+      "buildCmd": "npm run build",
+      "buildOutput": "dist",
+      "target": "D:/wildfly-8.2.0.Final/standalone/deployments/ing_uat.war/ui_swift/dist"
+    }
+  }
+}
+```
+
+## Author
 
 Akshay Achuthan
