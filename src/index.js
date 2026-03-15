@@ -4,6 +4,6 @@
 const init = require('./commands/init');
 const sync = require('./commands/sync');
 const watch = require('./commands/watch');
-const status = require('./commands/status');
+const list = require('./commands/status');
 
-module.exports = { init, sync, watch, status };
+module.exports = { init, sync, watch, list };
