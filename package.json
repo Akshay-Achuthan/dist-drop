@@ -15,8 +15,10 @@
     "start": "node bin/dist-drop.js"
   },
   "dependencies": {
+    "boxen": "^5.1.2",
     "chalk": "^4.1.2",
     "chokidar": "^3.6.0",
+    "cli-table3": "^0.6.5",
     "commander": "^11.1.0",
     "figlet": "^1.11.0",
     "fs-extra": "^11.2.0",
