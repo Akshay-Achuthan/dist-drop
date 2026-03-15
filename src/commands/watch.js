@@ -24,7 +24,7 @@ module.exports = async function watch(project) {
   const publicDir = path.join(projConfig.source, 'public');
 
   logger.blank();
-  console.log(chalk.bold.cyan(`  dist-drop watch — ${projConfig.name}`));
+  console.log(chalk.hex('#D4A017').bold(`  dist-drop watch — ${projConfig.name}`));
   console.log(chalk.dim(`  Watching: ${srcDir}`));
   console.log(chalk.dim(`  Target:   ${projConfig.target}`));
   console.log(chalk.dim(`  Press Ctrl+C to stop\n`));
