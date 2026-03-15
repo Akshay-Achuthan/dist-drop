@@ -2,6 +2,9 @@ const path = require('path');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const figlet = require('figlet');
+const boxen = require('boxen');
+const fs = require('fs-extra');
+const { detectFramework } = require('../utils/detector');
 const { loadConfig, saveConfig, CONFIG_FILE } = require('../utils/config');
 const logger = require('../utils/logger');
 
@@ -53,18 +56,15 @@ module.exports = async function init() {
 
   if (!warResult) return;
 
-  const warBase = warResult.warBase;
-  const projectConfig = warResult.projectConfig;
+  const { warBase, projectConfig } = warResult;
 
   // Merge with existing projects
   const allProjects = existingConfig
     ? { ...existingConfig.projects, ...projectConfig }
     : projectConfig;
 
-  const finalWarBase = warBase;
-
   // Show summary — only the project being added
-  showSummary(finalWarBase, projectConfig);
+  showSummary(warBase, projectConfig);
 
   const { confirm } = await inquirer.prompt([{
     type: 'confirm',
@@ -80,7 +80,7 @@ module.exports = async function init() {
 
   const config = {
     version: 1,
-    warBase: finalWarBase.replace(/\\/g, '/'),
+    warBase: warBase.replace(/\\/g, '/'),
     projects: allProjects
   };
 
@@ -93,9 +93,6 @@ module.exports = async function init() {
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-const fs = require('fs-extra');
-const { detectFramework } = require('../utils/detector');
 
 /**
  * Prompt for frontend project path. Validates it's a real frontend project.
@@ -200,7 +197,6 @@ async function promptWarTarget(proj) {
 }
 
 function showSummary(warBase, projects) {
-  const boxen = require('boxen');
 
   const lines = [];
   for (const [name, proj] of Object.entries(projects)) {

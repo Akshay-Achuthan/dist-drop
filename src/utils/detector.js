@@ -127,43 +127,4 @@ async function detectFramework(projectPath) {
   return null;
 }
 
-/**
- * Scan a directory for frontend projects.
- * First checks if the directory itself is a project, then scans child directories.
- * Returns array of { name, path, ...detectionResult }
- */
-async function scanProjects(sourceDir) {
-  const results = [];
-
-  // Check if sourceDir itself is a frontend project (has package.json)
-  const selfDetection = await detectFramework(sourceDir);
-  if (selfDetection) {
-    results.push({
-      name: path.basename(sourceDir),
-      path: sourceDir,
-      detected: selfDetection
-    });
-    return results;
-  }
-
-  // Otherwise scan child directories
-  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
-
-    const projectPath = path.join(sourceDir, entry.name);
-    const detection = await detectFramework(projectPath);
-
-    results.push({
-      name: entry.name,
-      path: projectPath,
-      detected: detection
-    });
-  }
-
-  return results;
-}
-
-module.exports = { detectFramework, scanProjects };
+module.exports = { detectFramework };
