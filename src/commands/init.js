@@ -13,10 +13,11 @@ module.exports = async function init() {
   // Check for existing config
   const existingConfig = await loadConfig();
 
-  let mode = 'new';
-  if (existingConfig) {
+  let mode;
+
+  if (existingConfig && Object.keys(existingConfig.projects).length > 0) {
     const existingNames = Object.keys(existingConfig.projects);
-    logger.info(`Existing config found with ${chalk.bold(existingNames.length)} project(s): ${existingNames.join(', ')}`);
+    logger.info(`Existing config: ${chalk.bold(existingNames.join(', '))}`);
     logger.blank();
 
     const { setupMode } = await inquirer.prompt([{
@@ -26,11 +27,12 @@ module.exports = async function init() {
       choices: [
         { name: 'Add projects      — keep existing config, add more projects', value: 'add' },
         { name: 'Edit projects     — modify existing project settings', value: 'edit' },
-        { name: 'New setup         — start fresh, replace current config', value: 'new' },
         { name: 'Remove projects   — remove projects from config', value: 'remove' }
       ]
     }]);
     mode = setupMode;
+  } else {
+    mode = 'new';
   }
 
   // --- REMOVE MODE ---
