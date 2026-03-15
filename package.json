@@ -21,11 +21,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/akshayachuthan/dist-drop"
+    "url": "https://github.com/Akshay-Achuthan/dist-drop"
   },
-  "homepage": "https://github.com/akshayachuthan/dist-drop#readme",
+  "homepage": "https://github.com/Akshay-Achuthan/dist-drop#readme",
   "bugs": {
-    "url": "https://github.com/akshayachuthan/dist-drop/issues"
+    "url": "https://github.com/Akshay-Achuthan/dist-drop/issues"
   },
   "bin": {
     "dist-drop": "./bin/dist-drop.js"
