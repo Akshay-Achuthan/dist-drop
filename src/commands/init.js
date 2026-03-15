@@ -1,13 +1,14 @@
 const path = require('path');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
+const figlet = require('figlet');
 const { scanProjects } = require('../utils/detector');
 const { loadConfig, saveConfig, CONFIG_FILE } = require('../utils/config');
 const logger = require('../utils/logger');
 
 module.exports = async function init() {
   logger.blank();
-  console.log(chalk.bold.cyan('  dist-drop init'));
+  console.log(chalk.hex('#6B8E23').bold(figlet.textSync('DIST-DROP', { font: 'ANSI Shadow' })));
   console.log(chalk.dim('  Interactive setup — auto-detect projects and configure targets\n'));
 
   // Check for existing config

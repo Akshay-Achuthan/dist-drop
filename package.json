@@ -18,6 +18,7 @@
     "chalk": "^4.1.2",
     "chokidar": "^3.6.0",
     "commander": "^11.1.0",
+    "figlet": "^1.11.0",
     "fs-extra": "^11.2.0",
     "inquirer": "^8.2.6",
     "ora": "^5.4.1"
