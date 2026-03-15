@@ -1,6 +1,6 @@
 {
   "name": "dist-drop",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool to automate frontend builds and copy to your WAR server",
   "author": "Akshay Achuthan",
   "license": "MIT",
