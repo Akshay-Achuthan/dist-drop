@@ -46,84 +46,26 @@ module.exports = async function init() {
   }
 
   // --- NEW or ADD MODE ---
+  const selectedProject = await promptAndDetectProject(existingConfig);
+  if (!selectedProject) return;
+
   const warBase = mode === 'add'
     ? existingConfig.warBase
     : await promptWarBase();
 
-  const sourceDir = await promptSourceDir();
-
-  // Scan for projects
+  // Configure target for the selected project
   logger.blank();
-  logger.info(`Scanning ${chalk.bold(sourceDir)}...`);
+  logger.info('Configure target folder inside the WAR:');
   logger.blank();
 
-  const scanned = await scanProjects(sourceDir);
-  const frontendProjects = scanned.filter(p => p.detected);
-  const skippedProjects = scanned.filter(p => !p.detected);
+  const projectConfig = await promptSingleProjectTarget(selectedProject, warBase);
 
-  if (frontendProjects.length === 0) {
-    logger.error('No frontend projects found in this directory.');
-    logger.dim('Make sure the directory contains folders with package.json files.');
-    return;
-  }
+  // Merge with existing projects
+  const allProjects = existingConfig
+    ? { ...existingConfig.projects, ...projectConfig }
+    : projectConfig;
 
-  // Display detected projects
-  console.log(chalk.dim(`  Found ${frontendProjects.length} project(s):\n`));
-  for (const proj of frontendProjects) {
-    const fw = chalk.yellow(proj.detected.frameworkLabel.padEnd(12));
-    const out = chalk.dim(`→ ${proj.detected.buildOutput}/`);
-    const already = (mode === 'add' && existingConfig.projects[proj.name])
-      ? chalk.dim(' (already configured)')
-      : '';
-    console.log(`  ${chalk.green('✔')} ${chalk.bold(proj.name.padEnd(24))} ${fw} ${out}${already}`);
-  }
-  for (const proj of skippedProjects) {
-    const hasPkg = require('fs-extra').pathExistsSync(path.join(proj.path, 'package.json'));
-    if (hasPkg) {
-      console.log(`  ${chalk.dim('⊘')} ${chalk.dim(proj.name.padEnd(24))} ${chalk.dim('(skipped — no build output)')}`);
-    }
-  }
-  logger.blank();
-
-  // In add mode, only show projects not already configured
-  const availableProjects = mode === 'add'
-    ? frontendProjects.filter(p => !existingConfig.projects[p.name])
-    : frontendProjects;
-
-  if (availableProjects.length === 0) {
-    logger.info('All detected projects are already configured.');
-    return;
-  }
-
-  // Select projects
-  const { selectedProjects } = await inquirer.prompt([{
-    type: 'checkbox',
-    name: 'selectedProjects',
-    message: 'Select projects to configure:',
-    choices: availableProjects.map(p => ({
-      name: `${p.name} (${p.detected.frameworkLabel})`,
-      value: p.name,
-      checked: false
-    })),
-    validate: (val) => val.length > 0 ? true : 'Select at least one project'
-  }]);
-
-  // Ask WAR base if new setup
-  const finalWarBase = mode === 'new'
-    ? warBase
-    : existingConfig.warBase;
-
-  // Configure target for each
-  logger.blank();
-  logger.info('Configure target folders inside the WAR:');
-  logger.blank();
-
-  const newProjects = await promptProjectTargets(selectedProjects, frontendProjects, finalWarBase);
-
-  // Merge projects
-  const allProjects = mode === 'add'
-    ? { ...existingConfig.projects, ...newProjects }
-    : newProjects;
+  const finalWarBase = warBase;
 
   // Show summary
   showSummary(finalWarBase, allProjects);
@@ -155,18 +97,94 @@ module.exports = async function init() {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-async function promptSourceDir() {
-  const { sourceDir } = await inquirer.prompt([{
-    type: 'input',
-    name: 'sourceDir',
-    message: 'Where are your frontend projects?',
-    default: process.cwd(),
-    validate: (val) => {
-      const fs = require('fs-extra');
-      return fs.pathExistsSync(val) ? true : 'Directory does not exist';
+const fs = require('fs-extra');
+const { detectFramework } = require('../utils/detector');
+
+/**
+ * Prompt user for a project path, scan it, and return a single project.
+ * Loops back if path is invalid or no projects found.
+ */
+async function promptAndDetectProject(existingConfig) {
+  while (true) {
+    const { projectPath } = await inquirer.prompt([{
+      type: 'input',
+      name: 'projectPath',
+      message: 'Path to your frontend project (or parent folder):',
+      validate: (val) => {
+        if (!val.trim()) return 'Path is required';
+        return fs.pathExistsSync(val.trim()) ? true : 'Directory does not exist. Try again.';
+      }
+    }]);
+
+    const resolvedPath = path.resolve(projectPath.trim());
+    logger.blank();
+    logger.info(`Scanning ${chalk.bold(resolvedPath)}...`);
+    logger.blank();
+
+    // Case A: Path itself is a frontend project
+    const directDetection = await detectFramework(resolvedPath);
+    if (directDetection) {
+      const projectName = path.basename(resolvedPath);
+
+      if (existingConfig && existingConfig.projects[projectName]) {
+        logger.warn(`${chalk.bold(projectName)} is already configured.`);
+        logger.blank();
+        continue;
+      }
+
+      const fw = chalk.yellow(directDetection.frameworkLabel);
+      const out = chalk.dim(`→ ${directDetection.buildOutput}/`);
+      console.log(`  ${chalk.green('✔')} ${chalk.bold(projectName)} ${fw} ${out}`);
+      logger.blank();
+
+      return { name: projectName, path: resolvedPath, detected: directDetection };
     }
-  }]);
-  return sourceDir;
+
+    // Case B: Scan child directories for multiple projects
+    const scanned = await scanProjects(resolvedPath);
+    let frontendProjects = scanned.filter(p => p.detected);
+
+    if (existingConfig) {
+      frontendProjects = frontendProjects.filter(p => !existingConfig.projects[p.name]);
+    }
+
+    if (frontendProjects.length === 0) {
+      // Case C: No projects found
+      logger.error('No frontend projects found at this path.');
+      logger.dim('Make sure the folder contains a package.json with a build script.');
+      logger.blank();
+      continue;
+    }
+
+    // Display found projects and let user pick one
+    console.log(chalk.dim(`  Found ${frontendProjects.length} project(s):\n`));
+    for (const proj of frontendProjects) {
+      const fw = chalk.yellow(proj.detected.frameworkLabel.padEnd(12));
+      const out = chalk.dim(`→ ${proj.detected.buildOutput}/`);
+      console.log(`  ${chalk.green('✔')} ${chalk.bold(proj.name.padEnd(24))} ${fw} ${out}`);
+    }
+    logger.blank();
+
+    const choices = frontendProjects.map(p => ({
+      name: `${p.name} (${p.detected.frameworkLabel})`,
+      value: p.name
+    }));
+    choices.push({ name: chalk.dim('↩ Go back — enter a different path'), value: '__back__' });
+
+    const { selectedProject } = await inquirer.prompt([{
+      type: 'list',
+      name: 'selectedProject',
+      message: 'Select a project:',
+      choices
+    }]);
+
+    if (selectedProject === '__back__') {
+      logger.blank();
+      continue;
+    }
+
+    return frontendProjects.find(p => p.name === selectedProject);
+  }
 }
 
 async function promptWarBase() {
@@ -179,56 +197,50 @@ async function promptWarBase() {
   return warBase;
 }
 
-async function promptProjectTargets(selectedProjects, frontendProjects, warBase) {
-  const projects = {};
+async function promptSingleProjectTarget(proj, warBase) {
+  const { targetFolder } = await inquirer.prompt([{
+    type: 'input',
+    name: 'targetFolder',
+    message: `Target folder inside WAR for ${chalk.bold(proj.name)} (just the name, e.g. "${proj.name}"):`,
+    default: proj.name
+  }]);
 
-  for (const projectName of selectedProjects) {
-    const proj = frontendProjects.find(p => p.name === projectName);
+  const { wantOverride } = await inquirer.prompt([{
+    type: 'confirm',
+    name: 'wantOverride',
+    message: `  Override detected settings? (${proj.detected.frameworkLabel}, ${proj.detected.buildCmd}, ${proj.detected.buildOutput}/)`,
+    default: false
+  }]);
 
-    const { targetFolder } = await inquirer.prompt([{
-      type: 'input',
-      name: 'targetFolder',
-      message: `Target folder inside WAR for ${chalk.bold(projectName)} (just the name, e.g. "${projectName}"):`,
-      default: projectName
-    }]);
+  let buildCmd = proj.detected.buildCmd;
+  let buildOutput = proj.detected.buildOutput;
 
-    const { wantOverride } = await inquirer.prompt([{
-      type: 'confirm',
-      name: 'wantOverride',
-      message: `  Override detected settings? (${proj.detected.frameworkLabel}, ${proj.detected.buildCmd}, ${proj.detected.buildOutput}/)`,
-      default: false
-    }]);
+  if (wantOverride) {
+    const overrides = await inquirer.prompt([
+      { type: 'input', name: 'buildCmd', message: '  Build command:', default: buildCmd },
+      { type: 'input', name: 'buildOutput', message: '  Build output folder:', default: buildOutput }
+    ]);
+    buildCmd = overrides.buildCmd;
+    buildOutput = overrides.buildOutput;
+  }
 
-    let buildCmd = proj.detected.buildCmd;
-    let buildOutput = proj.detected.buildOutput;
+  const normalizedWarBase = warBase.replace(/\\/g, '/');
+  const normalizedTarget = targetFolder.replace(/\\/g, '/');
 
-    if (wantOverride) {
-      const overrides = await inquirer.prompt([
-        { type: 'input', name: 'buildCmd', message: '  Build command:', default: buildCmd },
-        { type: 'input', name: 'buildOutput', message: '  Build output folder:', default: buildOutput }
-      ]);
-      buildCmd = overrides.buildCmd;
-      buildOutput = overrides.buildOutput;
-    }
+  const isAbsolute = /^[a-zA-Z]:[\\/]/.test(targetFolder) || targetFolder.startsWith('/');
+  const targetBase = isAbsolute
+    ? `${normalizedTarget}/${buildOutput}`
+    : `${normalizedWarBase}/${normalizedTarget}/${buildOutput}`;
 
-    const normalizedWarBase = warBase.replace(/\\/g, '/');
-    const normalizedTarget = targetFolder.replace(/\\/g, '/');
-
-    const isAbsolute = /^[a-zA-Z]:[\\/]/.test(targetFolder) || targetFolder.startsWith('/');
-    const targetBase = isAbsolute
-      ? `${normalizedTarget}/${buildOutput}`
-      : `${normalizedWarBase}/${normalizedTarget}/${buildOutput}`;
-
-    projects[projectName] = {
+  return {
+    [proj.name]: {
       source: proj.path.replace(/\\/g, '/'),
       framework: proj.detected.framework,
       buildCmd,
       buildOutput,
       target: targetBase
-    };
-  }
-
-  return projects;
+    }
+  };
 }
 
 function showSummary(warBase, projects) {
