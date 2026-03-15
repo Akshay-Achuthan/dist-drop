@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "warBase": "D:/wildfly-8.2.0.Final/standalone/deployments/app.war",
+  "projects": {
+    "ui_b2b": {
+      "source": "D:/projects/ui_b2b",
+      "framework": "vue2",
+      "buildCmd": "npm run build",
+      "buildOutput": "dist",
+      "target": "D:/wildfly-8.2.0.Final/standalone/deployments/app.war/Framewrk/B2B"
+    }
+  }
+}
