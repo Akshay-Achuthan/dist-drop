@@ -9,7 +9,7 @@ const logger = require('../utils/logger');
 module.exports = async function watch(project) {
   const config = await loadConfig();
   if (!config) {
-    logger.error(`No ${chalk.bold('.distdroprc.json')} found. Run ${chalk.cyan('dist-drop init')} first.`);
+    logger.error(`No ${chalk.bold('.distdroprc.json')} found. Run ${chalk.yellow('dist-drop init')} first.`);
     return;
   }
 

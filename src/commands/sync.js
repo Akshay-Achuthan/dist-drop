@@ -8,8 +8,8 @@ const logger = require('../utils/logger');
 async function syncProject(projectConfig, mode) {
   const name = projectConfig.name;
   logger.blank();
-  console.log(chalk.bold(`  ${chalk.cyan('▸')} ${name}`));
-  console.log(chalk.dim(`    ${projectConfig.source} → ${projectConfig.target}`));
+  console.log(chalk.bold(`  ${chalk.yellow('▸')} ${name}`));
+  console.log(`    ${chalk.hex('#D4A017')(projectConfig.source)} ${chalk.dim('→')} ${chalk.hex('#5B9BD5')(projectConfig.target)}`);
   logger.blank();
 
   const startTime = Date.now();
@@ -49,7 +49,7 @@ async function syncProject(projectConfig, mode) {
 module.exports = async function sync(project, opts) {
   const config = await loadConfig();
   if (!config) {
-    logger.error(`No ${chalk.bold('.distdroprc.json')} found. Run ${chalk.cyan('dist-drop init')} first.`);
+    logger.error(`No ${chalk.bold('.distdroprc.json')} found. Run ${chalk.yellow('dist-drop init')} first.`);
     return;
   }
 
