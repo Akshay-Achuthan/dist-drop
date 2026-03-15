@@ -1,6 +1,6 @@
 const chalk = require('chalk');
 const inquirer = require('inquirer');
-const { loadConfig, getProject, getAllProjects } = require('../utils/config');
+const { loadConfig, getProject, getAllProjects, CONFIG_FILE } = require('../utils/config');
 const { runBuild } = require('../utils/builder');
 const { copyToTarget, copyIncremental } = require('../utils/copier');
 const logger = require('../utils/logger');
@@ -49,7 +49,7 @@ async function syncProject(projectConfig, mode) {
 module.exports = async function sync(project, opts) {
   const config = await loadConfig();
   if (!config) {
-    logger.error(`No ${chalk.bold('.distdroprc.json')} found. Run ${chalk.yellow('dist-drop init')} first.`);
+    logger.error(`No ${chalk.bold(CONFIG_FILE)} found. Run ${chalk.yellow('dist-drop init')} first.`);
     return;
   }
 

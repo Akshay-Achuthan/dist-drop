@@ -1,7 +1,7 @@
 const path = require('path');
 const chalk = require('chalk');
 const chokidar = require('chokidar');
-const { loadConfig, getProject } = require('../utils/config');
+const { loadConfig, getProject, CONFIG_FILE } = require('../utils/config');
 const { runBuild } = require('../utils/builder');
 const { copyToTarget } = require('../utils/copier');
 const logger = require('../utils/logger');
@@ -9,7 +9,7 @@ const logger = require('../utils/logger');
 module.exports = async function watch(project) {
   const config = await loadConfig();
   if (!config) {
-    logger.error(`No ${chalk.bold('.distdroprc.json')} found. Run ${chalk.yellow('dist-drop init')} first.`);
+    logger.error(`No ${chalk.bold(CONFIG_FILE)} found. Run ${chalk.yellow('dist-drop init')} first.`);
     return;
   }
 
@@ -43,9 +43,13 @@ module.exports = async function watch(project) {
     const relPath = path.relative(projConfig.source, changedFile);
     logger.watch(`Change detected: ${chalk.bold(relPath)}`);
 
-    const buildResult = await runBuild(projConfig);
-    if (buildResult.success) {
-      await copyToTarget(projConfig);
+    try {
+      const buildResult = await runBuild(projConfig);
+      if (buildResult.success) {
+        await copyToTarget(projConfig);
+      }
+    } catch (err) {
+      logger.error(`Sync failed: ${err.message}`);
     }
 
     syncing = false;
