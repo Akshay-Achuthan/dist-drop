@@ -6,22 +6,22 @@ function timestamp() {
 
 const logger = {
   info(msg) {
-    console.log(chalk.cyan('ℹ'), msg);
+    console.log(chalk.yellow(' ℹ '), msg);
   },
   success(msg) {
-    console.log(chalk.green('✔'), msg);
+    console.log(' ✅ ', msg);
   },
   error(msg) {
-    console.log(chalk.red('✖'), msg);
+    console.log(' ❌ ', msg);
   },
   warn(msg) {
-    console.log(chalk.yellow('⚠'), msg);
+    console.log(chalk.yellow(' ⚠ '), msg);
   },
   watch(msg) {
-    console.log(timestamp(), chalk.magenta('⟳'), msg);
+    console.log(timestamp(), chalk.magenta(' ⟳ '), msg);
   },
   dim(msg) {
-    console.log(chalk.dim('  ' + msg));
+    console.log(chalk.dim('    ' + msg));
   },
   blank() {
     console.log();
