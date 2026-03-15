@@ -1,13 +1,43 @@
 {
   "name": "dist-drop",
   "version": "1.0.0",
-  "description": "Framework-agnostic CLI tool to automate build + copy of frontend apps into legacy Java WARs",
+  "description": "CLI tool to automate frontend builds and copy to your WAR server",
   "author": "Akshay Achuthan",
   "license": "MIT",
+  "keywords": [
+    "cli",
+    "build",
+    "deploy",
+    "war",
+    "wildfly",
+    "tomcat",
+    "weblogic",
+    "frontend",
+    "vue",
+    "react",
+    "angular",
+    "java",
+    "legacy"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/akshayachuthan/dist-drop"
+  },
+  "homepage": "https://github.com/akshayachuthan/dist-drop#readme",
+  "bugs": {
+    "url": "https://github.com/akshayachuthan/dist-drop/issues"
+  },
   "bin": {
     "dist-drop": "./bin/dist-drop.js"
   },
   "main": "src/index.js",
+  "files": [
+    "bin/",
+    "src/",
+    "Readme.md",
+    "LICENSE",
+    ".distdroprc.example.json"
+  ],
   "engines": {
     "node": ">=16"
   },

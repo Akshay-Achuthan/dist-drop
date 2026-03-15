@@ -1,6 +1,6 @@
 # dist-drop
 
-Framework-agnostic CLI tool that automates building frontend apps and copying build output into legacy Java WARs (Wildfly, Weblogic, Tomcat).
+CLI tool to automate frontend builds and copy to your WAR server (Wildfly, Weblogic, Tomcat).
 
 ## Problem
 
@@ -14,27 +14,29 @@ This is repetitive and error-prone — folder names don't always match, build ou
 
 ## Solution
 
-A one-time interactive setup (`dist-drop init`) auto-detects your frontend projects, then `dist-drop sync` or `dist-drop watch` handles the rest.
+A one-time interactive setup (`dist-drop init`) auto-detects your frontend project, then `dist-drop sync` or `dist-drop watch` handles the rest.
 
 ## Installation
 
 ```bash
-cd D:\Learnings\dist-drop
-npm install
-npm link
+npm install -g dist-drop
 ```
 
-After `npm link`, the `dist-drop` command is available globally.
+After installing, the `dist-drop` command is available globally.
 
 ## Commands
 
 ### `dist-drop init` — Interactive Setup
 
-Auto-detects frontend projects in a directory and creates `.distdroprc.json`:
+Set up your frontend project and WAR target path:
 
 ```bash
 dist-drop init
 ```
+
+**First time:** Asks for your frontend app path and WAR target path, auto-detects framework, saves config.
+
+**Already configured:** Shows options to add, edit, or remove projects.
 
 **Auto-detection supports:**
 
@@ -45,13 +47,13 @@ dist-drop init
 | React (Vite) | `@vitejs/plugin-react` | `dist/` |
 | Angular | `angular.json` | `dist/<project>/` |
 | Next.js | `next` in package.json | `out/` |
-| Generic | Fallback | User specifies |
+| Generic | Fallback | `dist/` |
 
 ### `dist-drop sync [project]` — Build + Drop
 
 ```bash
 # Sync a specific project
-dist-drop sync ui_swift
+dist-drop sync ui_b2b
 
 # Sync all configured projects
 dist-drop sync --all
@@ -65,38 +67,51 @@ Three sync modes:
 ### `dist-drop watch <project>` — Auto Sync on Save
 
 ```bash
-dist-drop watch ui_k2_retail
+dist-drop watch ui_b2b
 ```
 
 Watches `src/` and `public/` for changes. On save: debounce 500ms, build, copy. Press Ctrl+C to stop.
 
-### `dist-drop status` — Show Config
+### `dist-drop list` — Show Configured Projects
 
 ```bash
-dist-drop status
+dist-drop list
 ```
 
 Lists all configured projects with framework, source, target, and build status.
 
 ## Config File
 
-`.distdroprc.json` is created in your working directory:
+`.distdroprc.json` is created in your working directory after running `dist-drop init`:
 
 ```json
 {
   "version": 1,
-  "warBase": "D:/wildfly-8.2.0.Final/standalone/deployments/ing_uat.war",
+  "warBase": "/path/to/wildfly/standalone/deployments/app.war",
   "projects": {
-    "ui_swift": {
-      "source": "D:/credence/MERCURYFX/Apps/KOTAK/ui_swift",
+    "ui_b2b": {
+      "source": "/path/to/your/frontend/ui_b2b",
       "framework": "vue2",
       "buildCmd": "npm run build",
       "buildOutput": "dist",
-      "target": "D:/wildfly-8.2.0.Final/standalone/deployments/ing_uat.war/ui_swift/dist"
+      "target": "/path/to/wildfly/standalone/deployments/app.war/Framewrk/B2B"
     }
   }
 }
 ```
+
+See `.distdroprc.example.json` for a template.
+
+## Target Detection
+
+During setup, dist-drop checks the WAR target folder:
+- Has `dist/` inside → copies build output into `target/dist/`
+- Has `index.html` or `css/` + `js/` → copies directly into target
+- Empty folder → copies directly (first deploy)
+
+## License
+
+MIT
 
 ## Author
 
