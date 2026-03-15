@@ -2,14 +2,13 @@ const path = require('path');
 const inquirer = require('inquirer');
 const chalk = require('chalk');
 const figlet = require('figlet');
-const { scanProjects } = require('../utils/detector');
 const { loadConfig, saveConfig, CONFIG_FILE } = require('../utils/config');
 const logger = require('../utils/logger');
 
 module.exports = async function init() {
   logger.blank();
   console.log(chalk.hex('#6B8E23').bold(figlet.textSync('DIST-DROP', { font: 'ANSI Shadow' })));
-  console.log(chalk.dim('  Interactive setup — auto-detect projects and configure targets\n'));
+  console.log(chalk.dim('  A CLI tool to automate frontend builds and copy to your WAR server\n'));
 
   // Check for existing config
   const existingConfig = await loadConfig();
@@ -50,16 +49,12 @@ module.exports = async function init() {
   const selectedProject = await promptAndDetectProject(existingConfig);
   if (!selectedProject) return;
 
-  const warBase = mode === 'add'
-    ? existingConfig.warBase
-    : await promptWarBase();
+  const warResult = await promptWarTarget(selectedProject);
 
-  // Configure target for the selected project
-  logger.blank();
-  logger.info('Configure target folder inside the WAR:');
-  logger.blank();
+  if (!warResult) return;
 
-  const projectConfig = await promptSingleProjectTarget(selectedProject, warBase);
+  const warBase = warResult.warBase;
+  const projectConfig = warResult.projectConfig;
 
   // Merge with existing projects
   const allProjects = existingConfig
@@ -92,7 +87,8 @@ module.exports = async function init() {
   const configPath = await saveConfig(config);
   logger.blank();
   logger.success(`Config saved to ${chalk.bold(configPath)}`);
-  logger.dim(`Run ${chalk.cyan('dist-drop sync <project>')} to build and deploy.`);
+  const projectName = Object.keys(projectConfig)[0];
+  logger.dim(`Run ${chalk.cyan(`dist-drop sync ${projectName}`)} to build and deploy.`);
   logger.blank();
 };
 
@@ -102,15 +98,15 @@ const fs = require('fs-extra');
 const { detectFramework } = require('../utils/detector');
 
 /**
- * Prompt user for a project path, scan it, and return a single project.
- * Loops back if path is invalid or no projects found.
+ * Prompt for frontend project path. Validates it's a real frontend project.
+ * Loops on invalid/wrong path.
  */
 async function promptAndDetectProject(existingConfig) {
   while (true) {
     const { projectPath } = await inquirer.prompt([{
       type: 'input',
       name: 'projectPath',
-      message: 'Path to your frontend project (or parent folder):',
+      message: 'Frontend project path:',
       validate: (val) => {
         if (!val.trim()) return 'Path is required';
         return fs.pathExistsSync(val.trim()) ? true : 'Directory does not exist. Try again.';
@@ -118,130 +114,89 @@ async function promptAndDetectProject(existingConfig) {
     }]);
 
     const resolvedPath = path.resolve(projectPath.trim());
-    logger.blank();
-    logger.info(`Scanning ${chalk.bold(resolvedPath)}...`);
-    logger.blank();
 
-    // Case A: Path itself is a frontend project
-    const directDetection = await detectFramework(resolvedPath);
-    if (directDetection) {
-      const projectName = path.basename(resolvedPath);
-
-      if (existingConfig && existingConfig.projects[projectName]) {
-        logger.warn(`${chalk.bold(projectName)} is already configured.`);
-        logger.blank();
-        continue;
-      }
-
-      const fw = chalk.yellow(directDetection.frameworkLabel);
-      const out = chalk.dim(`→ ${directDetection.buildOutput}/`);
-      console.log(`  ${chalk.green('✔')} ${chalk.bold(projectName)} ${fw} ${out}`);
-      logger.blank();
-
-      return { name: projectName, path: resolvedPath, detected: directDetection };
-    }
-
-    // Case B: Scan child directories for multiple projects
-    const scanned = await scanProjects(resolvedPath);
-    let frontendProjects = scanned.filter(p => p.detected);
-
-    if (existingConfig) {
-      frontendProjects = frontendProjects.filter(p => !existingConfig.projects[p.name]);
-    }
-
-    if (frontendProjects.length === 0) {
-      // Case C: No projects found
-      logger.error('No frontend projects found at this path.');
-      logger.dim('Make sure the folder contains a package.json with a build script.');
+    const detection = await detectFramework(resolvedPath);
+    if (!detection) {
+      logger.error('Not a frontend project — no package.json with a build script found.');
       logger.blank();
       continue;
     }
 
-    // Display found projects and let user pick one
-    console.log(chalk.dim(`  Found ${frontendProjects.length} project(s):\n`));
-    for (const proj of frontendProjects) {
-      const fw = chalk.yellow(proj.detected.frameworkLabel.padEnd(12));
-      const out = chalk.dim(`→ ${proj.detected.buildOutput}/`);
-      console.log(`  ${chalk.green('✔')} ${chalk.bold(proj.name.padEnd(24))} ${fw} ${out}`);
+    const projectName = path.basename(resolvedPath);
+
+    if (existingConfig && existingConfig.projects[projectName]) {
+      logger.warn(`${chalk.bold(projectName)} is already configured.`);
+      logger.blank();
+      continue;
     }
+
+    const fw = chalk.yellow(detection.frameworkLabel);
+    const out = chalk.dim(`→ ${detection.buildOutput}/`);
+    console.log(`  ${chalk.green('✔')} ${chalk.bold(projectName)} ${fw} ${out}`);
     logger.blank();
 
-    const choices = frontendProjects.map(p => ({
-      name: `${p.name} (${p.detected.frameworkLabel})`,
-      value: p.name
-    }));
-    choices.push({ name: chalk.dim('↩ Go back — enter a different path'), value: '__back__' });
+    return { name: projectName, path: resolvedPath, detected: detection };
+  }
+}
 
-    const { selectedProject } = await inquirer.prompt([{
-      type: 'list',
-      name: 'selectedProject',
-      message: 'Select a project:',
-      choices
+/**
+ * Prompt for WAR target path. Validates directory exists.
+ * Auto-detects dist/ inside to decide final copy target.
+ */
+async function promptWarTarget(proj) {
+  while (true) {
+    const { targetPath } = await inquirer.prompt([{
+      type: 'input',
+      name: 'targetPath',
+      message: 'WAR target path (exact folder where build output should go):',
+      validate: (val) => {
+        if (!val.trim()) return 'Path is required';
+        return fs.pathExistsSync(val.trim()) ? true : 'Directory does not exist. Try again.';
+      }
     }]);
 
-    if (selectedProject === '__back__') {
+    const resolvedTarget = path.resolve(targetPath.trim()).replace(/\\/g, '/');
+
+    // Validate: must have dist/, or build output files (index.html, css/, js/), or be empty
+    const distPath = path.join(resolvedTarget, 'dist');
+    const hasDist = await fs.pathExists(distPath);
+    const hasIndex = await fs.pathExists(path.join(resolvedTarget, 'index.html'));
+    const hasCss = await fs.pathExists(path.join(resolvedTarget, 'css'));
+    const hasJs = await fs.pathExists(path.join(resolvedTarget, 'js'));
+    const entries = await fs.readdir(resolvedTarget);
+    const isEmpty = entries.length === 0;
+
+    const isValidTarget = hasDist || hasIndex || (hasCss && hasJs) || isEmpty;
+
+    if (!isValidTarget) {
+      logger.error('This doesn\'t look like a valid deploy target — no dist/, index.html, or css/js found.');
+      logger.dim('Enter the exact folder where build output is deployed.');
       logger.blank();
       continue;
     }
 
-    return frontendProjects.find(p => p.name === selectedProject);
+    // Extract warBase from path (everything up to and including .war)
+    const warMatch = resolvedTarget.match(/^(.+\.war)/i);
+    const warBase = warMatch ? warMatch[1] : resolvedTarget;
+
+    const finalTarget = hasDist ? distPath.replace(/\\/g, '/') : resolvedTarget;
+
+    logger.info(`Target: ${chalk.bold(finalTarget)}${hasDist ? chalk.dim(' (dist/ detected)') : isEmpty ? chalk.dim(' (empty folder — first deploy)') : chalk.dim(' (no dist/ — copying directly)')}`);
+    logger.blank();
+
+    return {
+      warBase,
+      projectConfig: {
+        [proj.name]: {
+          source: proj.path.replace(/\\/g, '/'),
+          framework: proj.detected.framework,
+          buildCmd: proj.detected.buildCmd,
+          buildOutput: proj.detected.buildOutput,
+          target: finalTarget
+        }
+      }
+    };
   }
-}
-
-async function promptWarBase() {
-  const { warBase } = await inquirer.prompt([{
-    type: 'input',
-    name: 'warBase',
-    message: 'WAR base path (e.g. D:/wildfly/standalone/deployments/app.war):',
-    validate: (val) => val.trim() ? true : 'WAR base path is required'
-  }]);
-  return warBase;
-}
-
-async function promptSingleProjectTarget(proj, warBase) {
-  const { targetFolder } = await inquirer.prompt([{
-    type: 'input',
-    name: 'targetFolder',
-    message: `Target folder inside WAR for ${chalk.bold(proj.name)} (just the name, e.g. "${proj.name}"):`,
-    default: proj.name
-  }]);
-
-  const { wantOverride } = await inquirer.prompt([{
-    type: 'confirm',
-    name: 'wantOverride',
-    message: `  Override detected settings? (${proj.detected.frameworkLabel}, ${proj.detected.buildCmd}, ${proj.detected.buildOutput}/)`,
-    default: false
-  }]);
-
-  let buildCmd = proj.detected.buildCmd;
-  let buildOutput = proj.detected.buildOutput;
-
-  if (wantOverride) {
-    const overrides = await inquirer.prompt([
-      { type: 'input', name: 'buildCmd', message: '  Build command:', default: buildCmd },
-      { type: 'input', name: 'buildOutput', message: '  Build output folder:', default: buildOutput }
-    ]);
-    buildCmd = overrides.buildCmd;
-    buildOutput = overrides.buildOutput;
-  }
-
-  const normalizedWarBase = warBase.replace(/\\/g, '/');
-  const normalizedTarget = targetFolder.replace(/\\/g, '/');
-
-  const isAbsolute = /^[a-zA-Z]:[\\/]/.test(targetFolder) || targetFolder.startsWith('/');
-  const targetBase = isAbsolute
-    ? `${normalizedTarget}/${buildOutput}`
-    : `${normalizedWarBase}/${normalizedTarget}/${buildOutput}`;
-
-  return {
-    [proj.name]: {
-      source: proj.path.replace(/\\/g, '/'),
-      framework: proj.detected.framework,
-      buildCmd,
-      buildOutput,
-      target: targetBase
-    }
-  };
 }
 
 function showSummary(warBase, projects) {
@@ -264,16 +219,13 @@ async function handleRemove(config) {
   const names = Object.keys(config.projects);
 
   const { toRemove } = await inquirer.prompt([{
-    type: 'checkbox',
+    type: 'list',
     name: 'toRemove',
-    message: 'Select projects to remove:',
-    choices: names.map(n => ({ name: `${n} (${config.projects[n].framework})`, value: n })),
-    validate: (val) => val.length > 0 ? true : 'Select at least one'
+    message: 'Select project to remove:',
+    choices: names.map(n => ({ name: `${n} (${config.projects[n].framework})`, value: n }))
   }]);
 
-  for (const name of toRemove) {
-    delete config.projects[name];
-  }
+  delete config.projects[toRemove];
 
   const remaining = Object.keys(config.projects).length;
   if (remaining === 0) {
@@ -282,7 +234,7 @@ async function handleRemove(config) {
 
   const configPath = await saveConfig(config);
   logger.blank();
-  logger.success(`Removed ${toRemove.length} project(s). ${remaining} remaining.`);
+  logger.success(`Removed ${chalk.bold(toRemove)}. ${remaining} project(s) remaining.`);
   logger.dim(`Config: ${configPath}`);
   logger.blank();
 }
@@ -292,49 +244,60 @@ async function handleRemove(config) {
 async function handleEdit(config) {
   const names = Object.keys(config.projects);
 
-  const { toEdit } = await inquirer.prompt([{
-    type: 'list',
-    name: 'toEdit',
-    message: 'Select project to edit:',
-    choices: names.map(n => ({
-      name: `${n}  →  ${config.projects[n].target}`,
-      value: n
-    }))
-  }]);
+  let toEdit;
+  if (names.length === 1) {
+    toEdit = names[0];
+    logger.info(`Auto-selected ${chalk.bold(toEdit)}`);
+  } else {
+    const { picked } = await inquirer.prompt([{
+      type: 'list',
+      name: 'picked',
+      message: 'Select project to edit:',
+      choices: names.map(n => ({
+        name: `${n}  →  ${config.projects[n].target}`,
+        value: n
+      }))
+    }]);
+    toEdit = picked;
+  }
 
   const proj = config.projects[toEdit];
   console.log(chalk.dim(`\n  Current settings for ${chalk.bold(toEdit)}:`));
-  console.log(chalk.dim(`    source:      ${proj.source}`));
-  console.log(chalk.dim(`    buildCmd:    ${proj.buildCmd}`));
-  console.log(chalk.dim(`    buildOutput: ${proj.buildOutput}`));
-  console.log(chalk.dim(`    target:      ${proj.target}\n`));
+  console.log(chalk.dim(`    source:  ${proj.source}`));
+  console.log(chalk.dim(`    build:   ${proj.buildCmd} → ${proj.buildOutput}/`));
+  console.log(chalk.dim(`    target:  ${proj.target}\n`));
 
-  const updates = await inquirer.prompt([
-    { type: 'input', name: 'buildCmd', message: 'Build command:', default: proj.buildCmd },
-    { type: 'input', name: 'buildOutput', message: 'Build output folder:', default: proj.buildOutput },
-    { type: 'input', name: 'target', message: 'Full target path:', default: proj.target }
-  ]);
-
-  config.projects[toEdit].buildCmd = updates.buildCmd;
-  config.projects[toEdit].buildOutput = updates.buildOutput;
-  config.projects[toEdit].target = updates.target.replace(/\\/g, '/');
-
-  // Option to edit WAR base too
-  const { editWar } = await inquirer.prompt([{
-    type: 'confirm',
-    name: 'editWar',
-    message: `Change WAR base? (currently: ${config.warBase})`,
-    default: false
+  const { whatToEdit } = await inquirer.prompt([{
+    type: 'list',
+    name: 'whatToEdit',
+    message: 'What do you want to change?',
+    choices: [
+      { name: 'Source path        — change frontend project path', value: 'source' },
+      { name: 'Target path        — change WAR target path', value: 'target' },
+      { name: 'Both               — change source and target', value: 'both' }
+    ]
   }]);
 
-  if (editWar) {
-    const { newWar } = await inquirer.prompt([{
-      type: 'input',
-      name: 'newWar',
-      message: 'New WAR base path:',
-      default: config.warBase
-    }]);
-    config.warBase = newWar.replace(/\\/g, '/');
+  // Edit source path
+  if (whatToEdit === 'source' || whatToEdit === 'both') {
+    const selectedProject = await promptAndDetectProject(null);
+    if (selectedProject) {
+      config.projects[toEdit].source = selectedProject.path.replace(/\\/g, '/');
+      config.projects[toEdit].framework = selectedProject.detected.framework;
+      config.projects[toEdit].buildCmd = selectedProject.detected.buildCmd;
+      config.projects[toEdit].buildOutput = selectedProject.detected.buildOutput;
+    }
+  }
+
+  // Edit target path
+  if (whatToEdit === 'target' || whatToEdit === 'both') {
+    const p = config.projects[toEdit];
+    const dummyProj = { name: toEdit, path: p.source, detected: { buildCmd: p.buildCmd, buildOutput: p.buildOutput, framework: p.framework } };
+    const warResult = await promptWarTarget(dummyProj);
+    if (warResult) {
+      config.warBase = warResult.warBase;
+      config.projects[toEdit].target = warResult.projectConfig[toEdit].target;
+    }
   }
 
   const configPath = await saveConfig(config);
