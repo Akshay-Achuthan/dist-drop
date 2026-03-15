@@ -16,10 +16,12 @@ async function loadConfig() {
   try {
     const config = await fs.readJson(configPath);
     if (!config.version || !config.projects) {
+      console.warn('\n ⚠  Config file is missing required fields (version/projects). Run dist-drop init.\n');
       return null;
     }
     return config;
-  } catch {
+  } catch (err) {
+    console.warn(`\n ⚠  Config file is corrupted: ${err.message}\n    Delete ${configPath} and run dist-drop init.\n`);
     return null;
   }
 }
