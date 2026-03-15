@@ -12,13 +12,15 @@
     "node": ">=16"
   },
   "scripts": {
-    "start": "node bin/dist-drop.js"
+    "start": "node bin/dist-drop.js",
+    "init": "node bin/dist-drop.js init",
+    "sync": "node bin/dist-drop.js sync",
+    "list": "node bin/dist-drop.js list"
   },
   "dependencies": {
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
     "chokidar": "^3.6.0",
-    "cli-table3": "^0.6.5",
     "commander": "^11.1.0",
     "figlet": "^1.11.0",
     "fs-extra": "^11.2.0",
