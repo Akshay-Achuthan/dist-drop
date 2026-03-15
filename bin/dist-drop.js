@@ -25,8 +25,8 @@ program
   .action((project) => require('../src/commands/watch')(project));
 
 program
-  .command('status')
-  .description('Show current config and last sync times')
+  .command('list')
+  .description('List all configured projects')
   .action(() => require('../src/commands/status')());
 
 program.parse();
