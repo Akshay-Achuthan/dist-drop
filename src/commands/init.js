@@ -7,7 +7,7 @@ const logger = require('../utils/logger');
 
 module.exports = async function init() {
   logger.blank();
-  console.log(chalk.hex('#6B8E23').bold(figlet.textSync('DIST-DROP', { font: 'ANSI Shadow' })));
+  console.log(chalk.hex('#D4A017').bold(figlet.textSync('DIST-DROP', { font: 'ANSI Shadow' })));
   console.log(chalk.dim('  A CLI tool to automate frontend builds and copy to your WAR server\n'));
 
   // Check for existing config
@@ -63,8 +63,8 @@ module.exports = async function init() {
 
   const finalWarBase = warBase;
 
-  // Show summary
-  showSummary(finalWarBase, allProjects);
+  // Show summary — only the project being added
+  showSummary(finalWarBase, projectConfig);
 
   const { confirm } = await inquirer.prompt([{
     type: 'confirm',
@@ -88,7 +88,7 @@ module.exports = async function init() {
   logger.blank();
   logger.success(`Config saved to ${chalk.bold(configPath)}`);
   const projectName = Object.keys(projectConfig)[0];
-  logger.dim(`Run ${chalk.cyan(`dist-drop sync ${projectName}`)} to build and deploy.`);
+  logger.dim(`Run ${chalk.yellow(`dist-drop sync ${projectName}`)} to build and deploy.`);
   logger.blank();
 };
 
@@ -106,7 +106,7 @@ async function promptAndDetectProject(existingConfig) {
     const { projectPath } = await inquirer.prompt([{
       type: 'input',
       name: 'projectPath',
-      message: 'Frontend project path:',
+      message: 'Enter your frontend app path (e.g. D:/projects/ui_b2b):',
       validate: (val) => {
         if (!val.trim()) return 'Path is required';
         return fs.pathExistsSync(val.trim()) ? true : 'Directory does not exist. Try again.';
@@ -130,9 +130,9 @@ async function promptAndDetectProject(existingConfig) {
       continue;
     }
 
-    const fw = chalk.yellow(detection.frameworkLabel);
+    const fw = chalk.white(detection.frameworkLabel);
     const out = chalk.dim(`→ ${detection.buildOutput}/`);
-    console.log(`  ${chalk.green('✔')} ${chalk.bold(projectName)} ${fw} ${out}`);
+    console.log(`✅ ${chalk.bold(projectName)} ${fw} ${out}`);
     logger.blank();
 
     return { name: projectName, path: resolvedPath, detected: detection };
@@ -181,7 +181,7 @@ async function promptWarTarget(proj) {
 
     const finalTarget = hasDist ? distPath.replace(/\\/g, '/') : resolvedTarget;
 
-    logger.info(`Target: ${chalk.bold(finalTarget)}${hasDist ? chalk.dim(' (dist/ detected)') : isEmpty ? chalk.dim(' (empty folder — first deploy)') : chalk.dim(' (no dist/ — copying directly)')}`);
+    logger.success(`Target: ${chalk.hex('#5B9BD5').bold(finalTarget)}${hasDist ? chalk.dim(' (dist/ detected)') : isEmpty ? chalk.dim(' (empty folder — first deploy)') : chalk.dim(' (no dist/ — copying directly)')}`);
     logger.blank();
 
     return {
@@ -200,17 +200,25 @@ async function promptWarTarget(proj) {
 }
 
 function showSummary(warBase, projects) {
-  logger.blank();
-  console.log(chalk.bold.cyan('  Summary:\n'));
-  console.log(chalk.dim(`  WAR base: ${warBase}`));
-  logger.blank();
+  const boxen = require('boxen');
+
+  const lines = [];
   for (const [name, proj] of Object.entries(projects)) {
-    console.log(`  ${chalk.bold(name)}`);
-    console.log(chalk.dim(`    source:  ${proj.source}`));
-    console.log(chalk.dim(`    build:   ${proj.buildCmd} → ${proj.buildOutput}/`));
-    console.log(chalk.dim(`    target:  ${proj.target}`));
-    logger.blank();
+    lines.push(chalk.bold.yellow(`📦 ${name}`) + chalk.dim(` (${proj.framework})`));
+    lines.push('');
+    lines.push(chalk.gray('Source:') + ' ' + chalk.hex('#D4A017')(proj.source));
+    lines.push(chalk.gray('WAR:') + '    ' + chalk.dim(warBase));
+    lines.push(chalk.gray('Target:') + ' ' + chalk.hex('#5B9BD5')(proj.target));
+    lines.push('');
+    lines.push(chalk.gray('Build:') + '  ' + chalk.dim(proj.buildCmd) + chalk.yellow(' → ') + chalk.dim(proj.buildOutput + '/'));
+    lines.push('');
   }
+  // Remove trailing blank line
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+
+  logger.blank();
+  console.log(boxen(lines.join('\n'), { padding: 1, borderColor: 'yellow', borderStyle: 'round', title: chalk.bold.yellow('Summary'), titleAlignment: 'left' }));
+  logger.blank();
 }
 
 // ── REMOVE MODE ──────────────────────────────────────────────────────
@@ -263,9 +271,9 @@ async function handleEdit(config) {
 
   const proj = config.projects[toEdit];
   console.log(chalk.dim(`\n  Current settings for ${chalk.bold(toEdit)}:`));
-  console.log(chalk.dim(`    source:  ${proj.source}`));
-  console.log(chalk.dim(`    build:   ${proj.buildCmd} → ${proj.buildOutput}/`));
-  console.log(chalk.dim(`    target:  ${proj.target}\n`));
+  console.log(chalk.gray('    source:  ') + chalk.hex('#D4A017')(proj.source));
+  console.log(chalk.gray('    build:   ') + chalk.dim(proj.buildCmd + ' → ' + proj.buildOutput + '/'));
+  console.log(chalk.gray('    target:  ') + chalk.hex('#5B9BD5')(proj.target) + '\n');
 
   const { whatToEdit } = await inquirer.prompt([{
     type: 'list',
